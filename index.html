@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hand Motion Classifier</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f7f6f2;
+      --surface: #ffffff;
+      --border: #e2e0da;
+      --text: #1a1916;
+      --muted: #8a887f;
+      --accent: #2c5f2e;
+      --accent-light: #e8f0e8;
+      --tag-bg: #1a1916;
+      --tag-text: #f7f6f2;
+      --error: #c0392b;
+      --radius: 4px;
+      --mono: 'DM Mono', monospace;
+      --serif: 'Fraunces', Georgia, serif;
+    }
+
+    body {
+      font-family: var(--mono);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 3rem 1.5rem;
+    }
+
+    .container {
+      max-width: 680px;
+      margin: 0 auto;
+    }
+
+    header {
+      margin-bottom: 3rem;
+      animation: fadeUp 0.5s ease both;
+    }
+
+    header h1 {
+      font-family: var(--serif);
+      font-weight: 300;
+      font-size: 2.4rem;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      color: var(--text);
+      margin-bottom: 0.5rem;
+    }
+
+    header h1 em {
+      font-style: italic;
+      color: var(--accent);
+    }
+
+    header p {
+      color: var(--muted);
+      font-size: 0.78rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    /* Drop zone */
+    .drop-zone {
+      border: 1.5px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 3.5rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      background: var(--surface);
+      animation: fadeUp 0.5s 0.1s ease both;
+      position: relative;
+    }
+
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: var(--accent);
+      background: var(--accent-light);
+    }
+
+    .drop-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .drop-icon {
+      width: 40px;
+      height: 40px;
+      margin: 0 auto 1rem;
+      opacity: 0.35;
+    }
+
+    .drop-zone p {
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .drop-zone .filename {
+      font-size: 0.85rem;
+      color: var(--accent);
+      font-weight: 500;
+      margin-top: 0.5rem;
+    }
+
+    /* Settings */
+    .settings {
+      margin-top: 1.5rem;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      animation: fadeUp 0.5s 0.2s ease both;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .field label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+    }
+
+    .field input, .field select {
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.55rem 0.75rem;
+      color: var(--text);
+      transition: border-color 0.2s;
+      outline: none;
+      width: 100%;
+    }
+
+    .field input:focus, .field select:focus {
+      border-color: var(--accent);
+    }
+
+    /* Button */
+    .btn {
+      margin-top: 1.5rem;
+      width: 100%;
+      padding: 0.85rem;
+      background: var(--text);
+      color: var(--bg);
+      border: none;
+      border-radius: var(--radius);
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.15s;
+      animation: fadeUp 0.5s 0.3s ease both;
+    }
+
+    .btn:hover:not(:disabled) { opacity: 0.85; transform: translateY(-1px); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Status */
+    .status {
+      margin-top: 1.25rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      min-height: 1.5rem;
+    }
+
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+
+    /* Results */
+    .results {
+      margin-top: 2.5rem;
+      animation: fadeUp 0.4s ease both;
+    }
+
+    .results-header {
+      display: flex;
+      align-items: baseline;
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
+      padding-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .results-header h2 {
+      font-family: var(--serif);
+      font-weight: 300;
+      font-size: 1.25rem;
+      letter-spacing: -0.01em;
+    }
+
+    .results-header span {
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    /* All labels */
+    .labels-section {
+      margin-bottom: 1.75rem;
+    }
+
+    .section-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 0.6rem;
+    }
+
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+
+    .tag {
+      background: var(--tag-bg);
+      color: var(--tag-text);
+      font-size: 0.75rem;
+      padding: 0.3rem 0.65rem;
+      border-radius: 2px;
+      letter-spacing: 0.02em;
+    }
+
+    /* Window cards */
+    .windows {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .window-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.1rem;
+    }
+
+    .window-meta {
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 0.6rem;
+    }
+
+    .window-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin-bottom: 0.6rem;
+    }
+
+    .window-tag {
+      background: var(--accent-light);
+      color: var(--accent);
+      font-size: 0.73rem;
+      padding: 0.25rem 0.55rem;
+      border-radius: 2px;
+      border: 1px solid #c4d9c4;
+    }
+
+    .window-summary {
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    /* Error */
+    .error-box {
+      margin-top: 1.25rem;
+      background: #fdf0ef;
+      border: 1px solid #f5c6c2;
+      border-radius: var(--radius);
+      padding: 0.85rem 1rem;
+      font-size: 0.78rem;
+      color: var(--error);
+      line-height: 1.5;
+    }
+
+    /* Animations */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Hand Motion <em>Classifier</em></h1>
+      <p>RMG Demo</p>
+    </header>
+
+    <!-- Upload -->
+    <div class="drop-zone" id="dropZone">
+      <input type="file" id="fileInput" accept="video/*" />
+      <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M7 16V4m0 0L4 7m3-3l3 3" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="3" y="14" width="18" height="7" rx="1" stroke-linecap="round"/>
+      </svg>
+      <p>Drop a video file here<br/>or click to browse</p>
+      <p class="filename hidden" id="fileName"></p>
+    </div>
+
+    <!-- Settings -->
+    <div class="settings">
+      <div class="field">
+        <label>Window (seconds)</label>
+        <input type="number" id="windowSeconds" value="2.0" min="0.5" step="0.5" />
+      </div>
+      <div class="field">
+        <label>Frames per window</label>
+        <input type="number" id="framesPerWindow" value="2" min="1" max="10" />
+      </div>
+      <div class="field">
+        <label>Max frames</label>
+        <input type="number" id="maxFrames" value="12" min="1" max="60" />
+      </div>
+      <div class="field">
+        <label>Model</label>
+        <select id="model">
+          <option value="gemini-2.5-flash">v1.1</option>
+          <option value="gemini-2.5-pro">v1.2</option>
+          <option value="gemini-2.0-flash">v1.0</option>
+          <option value="gemini-2.5-flash-lite">v2.0</option>
+          <option value="gemini-3.0-flash">v3.0</option>
+          <option value="gemini-3.1-pro">v4.0</option>
+        </select>
+      </div>
+    </div>
+
+    <button class="btn" id="classifyBtn" disabled>Classify video</button>
+
+    <div class="status hidden" id="status">
+      <div class="spinner"></div>
+      <span id="statusText">Uploading and analysing…</span>
+    </div>
+
+    <div class="error-box hidden" id="errorBox"></div>
+
+    <!-- Results -->
+    <div class="results hidden" id="results">
+      <div class="results-header">
+        <h2>Results</h2>
+        <span id="resultsCount"></span>
+      </div>
+
+      <div class="labels-section">
+        <div class="section-label">All detected movements</div>
+        <div class="tags" id="allLabels"></div>
+      </div>
+
+      <div class="section-label">Per-window breakdown</div>
+      <div class="windows" id="windows"></div>
+    </div>
+  </div>
+
+  <script>
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const fileName = document.getElementById('fileName');
+    const classifyBtn = document.getElementById('classifyBtn');
+    const status = document.getElementById('status');
+    const statusText = document.getElementById('statusText');
+    const errorBox = document.getElementById('errorBox');
+    const results = document.getElementById('results');
+
+    let selectedFile = null;
+
+    // Drag and drop
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file) setFile(file);
+    });
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files[0]) setFile(fileInput.files[0]);
+    });
+
+    function setFile(file) {
+      selectedFile = file;
+      fileName.textContent = file.name;
+      fileName.classList.remove('hidden');
+      classifyBtn.disabled = false;
+    }
+
+    function fmt(sec) {
+      return sec.toFixed(2) + 's';
+    }
+
+    classifyBtn.addEventListener('click', async () => {
+      if (!selectedFile) return;
+
+      // Reset UI
+      errorBox.classList.add('hidden');
+      results.classList.add('hidden');
+      status.classList.remove('hidden');
+      classifyBtn.disabled = true;
+      statusText.textContent = 'Uploading and analysing…';
+
+      const fd = new FormData();
+      fd.append('video', selectedFile);
+      fd.append('window_seconds', document.getElementById('windowSeconds').value);
+      fd.append('frames_per_window', document.getElementById('framesPerWindow').value);
+      fd.append('max_frames', document.getElementById('maxFrames').value);
+      fd.append('model', document.getElementById('model').value);
+
+      try {
+        const res = await fetch('/classify', { method: 'POST', body: fd });
+        const data = await res.json();
+
+        if (!res.ok) throw new Error(data.detail || 'Classification failed.');
+
+        renderResults(data);
+      } catch (err) {
+        errorBox.textContent = '⚠ ' + err.message;
+        errorBox.classList.remove('hidden');
+      } finally {
+        status.classList.add('hidden');
+        classifyBtn.disabled = false;
+      }
+    });
+
+    function renderResults(data) {
+      // All labels
+      const allLabels = document.getElementById('allLabels');
+      allLabels.innerHTML = data.all_labels.map(l =>
+        `<span class="tag">${l}</span>`
+      ).join('');
+
+      // Windows
+      const windowsEl = document.getElementById('windows');
+      windowsEl.innerHTML = data.windows.map(w => `
+        <div class="window-card">
+          <div class="window-meta">${fmt(w.start_sec)} → ${fmt(w.end_sec)}</div>
+          <div class="window-tags">
+            ${w.movement_types.map(t => `<span class="window-tag">${t}</span>`).join('')}
+          </div>
+          <div class="window-summary">${w.summary}</div>
+        </div>
+      `).join('');
+
+      document.getElementById('resultsCount').textContent =
+        `${data.windows.length} window${data.windows.length !== 1 ? 's' : ''}`;
+
+      results.classList.remove('hidden');
+    }
+  </script>
+</body>
+</html>
